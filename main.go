@@ -20,13 +20,13 @@ var (
 )
 
 func main() {
-	numServers := 10
+	numServers := 7
 	configuration := func(reg int) [][]int {
 		return [][]int{
 			{0, 1, 2, 3},
+			{1, 2, 3, 4},
 			{2, 3, 4, 5},
-			{4, 5, 6, 7},
-			{6, 7, 8, 9},
+			{3, 4, 5, 6},
 		}
 	}
 
@@ -64,7 +64,7 @@ func main() {
 						w.Done()
 
 					case <-sigClose:
-						pt("%v\n", registers)
+						//pt("%v\n", registers)
 						return
 					}
 				}
@@ -202,7 +202,14 @@ func main() {
 							return true
 						}()
 						if isMaybe {
-							input = *maybe
+
+							if rand.Intn(100) > 33 {
+								// non-cooperative
+								input = int(rand.Int63())
+							} else {
+								input = *maybe
+							}
+
 							//pt("maybe %d\n", input)
 							ret := write(quorum[nextServer], reg, input)
 							states[quorum[nextServer]] = ret
