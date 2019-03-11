@@ -59,7 +59,9 @@ func main() {
 							}
 						}
 						// write
-						registers = append(registers, w.Arg)
+						if rand.Intn(100) > 50 { // randomize
+							registers = append(registers, w.Arg)
+						}
 						w.Ret = registers
 						w.Done()
 
