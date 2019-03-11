@@ -23,8 +23,10 @@ func main() {
 	numServers := 10
 	configuration := func(reg int) [][]int {
 		return [][]int{
-			{9, 8, 7, 6, 5, 4, 3},
-			{0, 1, 2, 3, 4, 5, 6},
+			{0, 1, 2, 3},
+			{2, 3, 4, 5},
+			{4, 5, 6, 7},
+			{6, 7, 8, 9},
 		}
 	}
 
@@ -84,7 +86,7 @@ func main() {
 		}
 
 		// clients
-		numClients := 128
+		numClients := 512
 		wg := new(sync.WaitGroup)
 		wg.Add(numClients)
 		decides := make([]int, numClients)
@@ -100,10 +102,6 @@ func main() {
 				}
 				_ = pt
 
-				if rand.Intn(5) == 0 {
-					// no input
-					return
-				}
 				input := int(rand.Int63())
 
 				states := make(map[int][][2]int)
@@ -240,6 +238,6 @@ func main() {
 		}
 		pt("decide %d in %v\n", compare, time.Since(t0))
 
-		time.Sleep(time.Millisecond * 200)
+		//time.Sleep(time.Millisecond * 200)
 	}
 }
