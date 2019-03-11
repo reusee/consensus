@@ -112,6 +112,7 @@ func main() {
 			loop:
 				for {
 					quorums := configuration(reg)
+					numDecided := 0
 					for _, quorum := range quorums {
 
 						values := make([]*int, len(quorum))
@@ -158,7 +159,13 @@ func main() {
 						if isDecided {
 							decides[i] = *values[0]
 							//pt("decided %d\n", *values[0])
-							return
+							numDecided++
+							if numDecided == len(quorums) {
+								return
+							} else {
+								// replicate
+								continue
+							}
 						}
 
 						isNone := func() bool {
