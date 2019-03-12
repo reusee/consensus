@@ -31,9 +31,10 @@ func main() {
 	}
 
 	type Write struct {
-		Arg  [2]int
-		Ret  [][2]int
-		Done func()
+		Reg   int
+		Value *int
+		Ret   [][2]int
+		Done  func()
 	}
 
 	for {
@@ -52,15 +53,15 @@ func main() {
 					select {
 					case w := <-ch:
 						for _, pair := range registers {
-							if pair[0] == w.Arg[0] { // written
+							if pair[0] == w.Reg { // written
 								w.Ret = registers
 								w.Done()
 								continue loop
 							}
 						}
 						// write
-						if rand.Intn(100) > 50 { // randomize
-							registers = append(registers, w.Arg)
+						if rand.Intn(100) < 5 && w.Value != nil { // randomize
+							registers = append(registers, [2]int{w.Reg, *w.Value})
 						}
 						w.Ret = registers
 						w.Done()
@@ -73,11 +74,12 @@ func main() {
 			}()
 		}
 
-		write := func(server int, register int, value int) [][2]int {
+		write := func(server int, register int, value *int) [][2]int {
 			var l sync.Mutex
 			l.Lock()
 			w := &Write{
-				Arg: [2]int{register, value},
+				Reg:   register,
+				Value: value,
 				Done: func() {
 					l.Unlock()
 				},
@@ -104,7 +106,8 @@ func main() {
 				}
 				_ = pt
 
-				input := int(rand.Int63())
+				n := int(rand.Int63())
+				input := &n
 
 				states := make(map[int][][2]int)
 
@@ -114,51 +117,40 @@ func main() {
 					quorums := configuration(reg)
 					numDecided := 0
 					for _, quorum := range quorums {
-
-						values := make([]*int, len(quorum))
+						var valueSet []int
+						var firstNull *int
 						for i, server := range quorum {
 							serverState := states[server]
+							isNull := true
 							for _, pair := range serverState {
 								if pair[0] == reg {
-									values[i] = &pair[1]
+									i := 0
+									for ; i < len(valueSet); i++ {
+										if valueSet[i] == pair[1] {
+											break
+										}
+									}
+									if i == len(valueSet) {
+										valueSet = append(valueSet, pair[1])
+									}
+									isNull = false
 									break
 								}
 							}
+							if isNull && firstNull == nil {
+								i := i
+								firstNull = &i
+							}
 						}
 
-						isAny := func() bool {
-							for _, v := range values {
-								if v != nil {
-									return false
-								}
-							}
-							return true
-						}()
-						if isAny {
-							//pt("any\n")
+						if len(valueSet) == 0 { // any
 							server := quorum[rand.Intn(len(quorum))]
 							ret := write(server, reg, input)
 							states[server] = ret
 							continue loop
-						}
 
-						isDecided := func() bool {
-							var compare int
-							for i, v := range values {
-								if v == nil {
-									return false
-								}
-								if i == 0 {
-									compare = *v
-								} else if compare != *v {
-									return false
-								}
-							}
-							return true
-						}()
-						if isDecided {
-							decides[i] = *values[0]
-							//pt("decided %d\n", *values[0])
+						} else if len(valueSet) == 1 && firstNull == nil { // decided
+							decides[i] = valueSet[0]
 							numDecided++
 							if numDecided == len(quorums) {
 								return
@@ -166,59 +158,27 @@ func main() {
 								// replicate
 								continue
 							}
-						}
 
-						isNone := func() bool {
-							var compare *int
-							for _, v := range values {
-								if v == nil {
-									continue
-								}
-								if compare == nil {
-									compare = v
-								} else if *compare != *v {
-									return true
-								}
-							}
-							return false
-						}()
-						if isNone {
-							//pt("none\n")
+						} else if len(valueSet) > 1 { // none
 							continue
-						}
 
-						var maybe *int
-						var nextServer int
-						isMaybe := func() bool {
-							for i, v := range values {
-								if v == nil {
-									nextServer = i
-									continue
-								}
-								if maybe == nil {
-									maybe = v
-								} else if *maybe != *v {
-									return false
-								}
-							}
-							return true
-						}()
-						if isMaybe {
-
-							if rand.Intn(100) > 33 {
+						} else if len(valueSet) == 1 && firstNull != nil { // maybe
+							if r := rand.Intn(100); r < 10 {
 								// non-cooperative
-								input = int(rand.Int63())
+								n = int(rand.Int63())
+								input = &n
+							} else if r < 20 {
+								// non-engaging
+								input = nil
 							} else {
-								input = *maybe
+								input = &valueSet[0]
 							}
-
-							//pt("maybe %d\n", input)
-							ret := write(quorum[nextServer], reg, input)
-							states[quorum[nextServer]] = ret
+							ret := write(quorum[*firstNull], reg, input)
+							states[quorum[*firstNull]] = ret
 							continue loop
 						}
 
-						panic("bad path")
+						panic("impossible")
 
 					}
 
