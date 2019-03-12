@@ -182,7 +182,7 @@ func main() {
 
 					}
 
-					// all none
+					// done with current register set
 					reg++
 
 				}
