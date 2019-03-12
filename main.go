@@ -60,7 +60,7 @@ func main() {
 							}
 						}
 						// write
-						if rand.Intn(100) < 5 && w.Value != nil { // randomize
+						if w.Value != nil {
 							registers = append(registers, [2]int{w.Reg, *w.Value})
 						}
 						w.Ret = registers
@@ -115,7 +115,6 @@ func main() {
 			loop:
 				for {
 					quorums := configuration(reg)
-					numDecided := 0
 					for _, quorum := range quorums {
 						var valueSet []int
 						var firstNull *int
@@ -151,28 +150,13 @@ func main() {
 
 						} else if len(valueSet) == 1 && firstNull == nil { // decided
 							decides[i] = valueSet[0]
-							numDecided++
-							if numDecided == len(quorums) {
-								return
-							} else {
-								// replicate
-								continue
-							}
+							return
 
 						} else if len(valueSet) > 1 { // none
 							continue
 
 						} else if len(valueSet) == 1 && firstNull != nil { // maybe
-							if r := rand.Intn(100); r < 10 {
-								// non-cooperative
-								n = int(rand.Int63())
-								input = &n
-							} else if r < 20 {
-								// non-engaging
-								input = nil
-							} else {
-								input = &valueSet[0]
-							}
+							input = &valueSet[0]
 							ret := write(quorum[*firstNull], reg, input)
 							states[quorum[*firstNull]] = ret
 							continue loop
