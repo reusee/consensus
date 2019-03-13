@@ -307,13 +307,13 @@ func main() {
 
 							} else if len(valueSet) == 1 && firstNull != nil {
 								// maybe
-								input = &valueSet[0]
-								ret := write(quorum[*firstNull], nextKey, reg, input)
 								if valueSet[0] != req.Value {
 									// fail fast
 									nextKey++
 									goto do
 								}
+								input = &valueSet[0]
+								ret := write(quorum[*firstNull], nextKey, reg, input)
 								states[quorum[*firstNull]] = ret
 								continue loop
 							}
