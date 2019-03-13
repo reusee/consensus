@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/rand"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,7 +48,7 @@ func main() {
 		return
 	}
 
-	numRegisterServers := 7
+	numRegisterServers := 5
 	var servers []int
 	for i := 0; i < numRegisterServers; i++ {
 		servers = append(servers, i)
@@ -131,7 +132,7 @@ func main() {
 		Done  func()
 	}
 	reqChan := make(chan *Request)
-	for i := 0; i < 64; i++ {
+	for i := 0; i < runtime.NumCPU(); i++ {
 		go func() {
 
 			var nextKey Key
@@ -229,21 +230,13 @@ func main() {
 	}
 
 	// client requests
-	var l sync.Mutex
-	kv := make(map[Key]Value)
 	var n int64
 	t0 := time.Now()
 	for {
 		req := new(Request)
 		req.Value = Value(rand.Int63())
 		req.Done = func() {
-			l.Lock()
-			if _, ok := kv[req.Key]; ok {
-				panic("conflict")
-			}
-			kv[req.Key] = req.Value
-			l.Unlock()
-			if c := atomic.AddInt64(&n, 1); c%1000 == 0 {
+			if c := atomic.AddInt64(&n, 1); c%10000 == 0 {
 				pt("%d %v\n", c, time.Since(t0))
 			}
 		}
