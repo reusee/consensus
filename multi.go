@@ -72,43 +72,8 @@ func main() {
 		Regs  []RegPair
 		Done  func()
 	}
+
 	var regWriteChans []chan *Write
-	for i := 0; i < numRegisterServers; i++ {
-		ch := make(chan *Write)
-		regWriteChans = append(regWriteChans, ch)
-		go func() {
-			registers := make(map[Key][]RegPair)
-			//TODO unload old entries
-
-		loop:
-			for {
-				select {
-				case w := <-ch:
-					pairs := registers[w.Key]
-					for _, pair := range pairs {
-						if pair.Reg == w.Reg {
-							// written
-							w.Regs = pairs
-							w.Done()
-							continue loop
-						}
-					}
-					// write
-					if w.Value != nil {
-						pairs = append(pairs, RegPair{
-							Reg:   w.Reg,
-							Value: *w.Value,
-						})
-						registers[w.Key] = pairs
-					}
-					w.Regs = pairs
-					w.Done()
-				}
-			}
-
-		}()
-	}
-
 	write := func(server int, key Key, register int, value *Value) []RegPair {
 		var l sync.Mutex
 		l.Lock()
@@ -123,6 +88,141 @@ func main() {
 		regWriteChans[server] <- w
 		l.Lock()
 		return w.Regs
+	}
+
+	for i := 0; i < numRegisterServers; i++ {
+		ch := make(chan *Write)
+		regWriteChans = append(regWriteChans, ch)
+		go func() {
+			registers := make(map[Key][]RegPair)
+			//TODO unload old entries
+
+			sigSync := make(chan struct{})
+			go func() {
+			loop:
+				for {
+					select {
+					case w := <-ch:
+						pairs, ok := registers[w.Key]
+						for _, pair := range pairs {
+							if pair.Reg == w.Reg {
+								// written
+								w.Regs = pairs
+								w.Done()
+								continue loop
+							}
+						}
+						// write
+						if w.Value != nil {
+							pairs = append(pairs, RegPair{
+								Reg:   w.Reg,
+								Value: *w.Value,
+							})
+							registers[w.Key] = pairs
+							if !ok {
+								select {
+								case sigSync <- struct{}{}:
+								default:
+								}
+							}
+						}
+						w.Regs = pairs
+						w.Done()
+					}
+				}
+			}()
+
+			// minion client
+			var key Key
+		wait:
+			for range sigSync {
+			loop_key:
+				for {
+
+					var input *Value
+					states := make(map[int][]RegPair)
+					reg := 0
+					decidedServers := make(map[int]bool)
+					allAny := true
+				loop:
+					for {
+						quorums := configuration(reg)
+					loop_quorum:
+						for _, quorum := range quorums {
+							var valueSet []Value
+							var firstNull *int
+							for i, server := range quorum {
+								serverState := states[server]
+								isNull := true
+								for _, pair := range serverState {
+									if pair.Reg == reg {
+										i := 0
+										for ; i < len(valueSet); i++ {
+											if valueSet[i] == pair.Value {
+												break
+											}
+										}
+										if i == len(valueSet) {
+											valueSet = append(valueSet, pair.Value)
+										}
+										isNull = false
+										break
+									}
+								}
+								if isNull && firstNull == nil {
+									i := i
+									firstNull = &i
+								}
+							}
+
+							if len(valueSet) == 0 {
+								// any
+								allAny = false
+								server := quorum[rand.Intn(len(quorum))]
+								ret := write(server, key, reg, input)
+								states[server] = ret
+								continue loop
+
+							} else if len(valueSet) == 1 && firstNull == nil {
+								// decided
+								for _, server := range quorum {
+									decidedServers[server] = true
+								}
+								if len(decidedServers) == numRegisterServers {
+									if key%100000 == 0 {
+										pt("%d replicated\n", key)
+									}
+									key++
+									continue loop_key
+								}
+								continue loop_quorum
+
+							} else if len(valueSet) > 1 {
+								// none
+								continue loop_quorum
+
+							} else if len(valueSet) == 1 && firstNull != nil {
+								// maybe
+								input = &valueSet[0]
+								ret := write(quorum[*firstNull], key, reg, input)
+								states[quorum[*firstNull]] = ret
+								continue loop
+							}
+
+							panic("impossible")
+
+						}
+
+						reg++
+					}
+					if allAny {
+						continue wait
+					}
+
+				}
+			}
+
+		}()
 	}
 
 	// handler servers
@@ -232,7 +332,7 @@ func main() {
 	// client requests
 	var n int64
 	t0 := time.Now()
-	for {
+	for i := 0; i <= 1000000; i++ {
 		req := new(Request)
 		req.Value = Value(rand.Int63())
 		req.Done = func() {
@@ -242,5 +342,7 @@ func main() {
 		}
 		reqChan <- req
 	}
+
+	select {}
 
 }
