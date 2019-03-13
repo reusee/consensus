@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math/rand"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -12,18 +14,39 @@ var (
 
 func main() {
 
-	numRegisterServers := 5
-	configuration := func(reg int) [][]int {
-		return [][]int{
-			//{0, 1, 2, 3},
-			//{1, 2, 3, 4},
-			//{2, 3, 4, 5},
-			//{3, 4, 5, 6},
-
-			{0, 1, 2},
-			{1, 2, 3},
-			{2, 3, 4},
+	var comb func(selections []int, n int) [][]int
+	comb = func(selections []int, n int) (ret [][]int) {
+		if n == 0 || len(selections) < n {
+			return
 		}
+		if n == 1 {
+			for _, sel := range selections {
+				ret = append(ret, []int{sel})
+			}
+			return
+		}
+		for i, sel := range selections {
+			for _, c := range comb(selections[i+1:], n-1) {
+				if len(c) == 0 {
+					continue
+				}
+				newC := make([]int, len(c)+1)
+				newC[0] = sel
+				copy(newC[1:], c)
+				ret = append(ret, newC)
+			}
+		}
+		return
+	}
+
+	numRegisterServers := 7
+	var servers []int
+	for i := 0; i < numRegisterServers; i++ {
+		servers = append(servers, i)
+	}
+	conf := comb(servers, (len(servers)+1)/2)
+	configuration := func(reg int) [][]int {
+		return conf
 	}
 
 	// register servers
@@ -175,6 +198,11 @@ func main() {
 								// maybe
 								input = &valueSet[0]
 								ret := write(quorum[*firstNull], nextKey, reg, input)
+								if valueSet[0] != req.Value {
+									// fail fast
+									nextKey++
+									goto do
+								}
 								states[quorum[*firstNull]] = ret
 								continue loop
 							}
@@ -195,6 +223,8 @@ func main() {
 	// client requests
 	var l sync.Mutex
 	kv := make(map[Key]Value)
+	var n int64
+	t0 := time.Now()
 	for {
 		req := new(Request)
 		req.Value = Value(rand.Int63())
@@ -205,7 +235,9 @@ func main() {
 			}
 			kv[req.Key] = req.Value
 			l.Unlock()
-			pt("%v %v\n", req.Key, req.Value)
+			if c := atomic.AddInt64(&n, 1); c%1000 == 0 {
+				pt("%d %v\n", c, time.Since(t0))
+			}
 		}
 		reqChan <- req
 	}
