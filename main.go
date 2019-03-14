@@ -335,14 +335,17 @@ func main() {
 	var n int64
 	t0 := time.Now()
 	for i := 0; i <= 1000000; i++ {
-		req := new(Request)
-		req.Value = Value(rand.Int63())
-		req.Done = func() {
-			if c := atomic.AddInt64(&n, 1); c%10000 == 0 {
-				pt("%d %v\n", c, time.Since(t0))
+		spawn(func(_ ...any) Routine {
+			req := new(Request)
+			req.Value = Value(rand.Int63())
+			req.Done = func() {
+				if c := atomic.AddInt64(&n, 1); c%10000 == 0 {
+					pt("%d %v\n", c, time.Since(t0))
+				}
 			}
-		}
-		reqChan <- req
+			reqChan <- req
+			return nil
+		})
 	}
 
 	select {}
