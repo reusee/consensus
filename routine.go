@@ -1,6 +1,9 @@
 package main
 
-import "runtime"
+import (
+	"math/rand"
+	"runtime"
+)
 
 type any = interface{}
 
@@ -38,6 +41,7 @@ func init() {
 			var rs []Routine
 			for {
 				if len(rs) > 0 {
+					idx := rand.Intn(len(rs))
 					select {
 					case r := <-schedIn:
 						select {
@@ -45,8 +49,11 @@ func init() {
 						default:
 							rs = append(rs, r)
 						}
-					case schedOut <- rs[0]:
-						rs = rs[1:]
+					case schedOut <- rs[idx]:
+						rs = append(
+							rs[:idx],
+							rs[idx+1:]...,
+						)
 					}
 				} else {
 					select {
