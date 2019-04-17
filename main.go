@@ -64,7 +64,7 @@ func main() {
 		return
 	}
 
-	numRegisterServers := 5
+	numRegisterServers := 7
 	var servers []int
 	for i := 0; i < numRegisterServers; i++ {
 		servers = append(servers, i)
@@ -135,6 +135,7 @@ func main() {
 			}()
 
 			// minion client
+			t0 := time.Now()
 			var key Key
 		wait:
 			for range sigSync {
@@ -192,7 +193,7 @@ func main() {
 								}
 								if len(decidedServers) == numRegisterServers {
 									if key%100000 == 0 {
-										pt("%d replicated\n", key)
+										pt("replicated %d %v\n", key, time.Since(t0))
 									}
 									key++
 									continue loop_key
@@ -334,13 +335,13 @@ func main() {
 	// client requests
 	var n int64
 	t0 := time.Now()
-	for i := 0; i <= 1000000; i++ {
+	for i := 0; true; i++ {
 		spawn(func(_ ...any) Routine {
 			req := new(Request)
 			req.Value = Value(rand.Int63())
 			req.Done = func() {
 				if c := atomic.AddInt64(&n, 1); c%10000 == 0 {
-					pt("%d %v\n", c, time.Since(t0))
+					pt("written %d %v\n", c, time.Since(t0))
 				}
 			}
 			reqChan <- req
