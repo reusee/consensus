@@ -154,27 +154,29 @@ func main() {
 						for _, quorum := range quorums {
 							var valueSet []Value
 							var firstNull *int
-							for i, server := range quorum {
-								serverState := states[server]
-								isNull := true
-								for _, pair := range serverState {
-									if pair.Reg == reg {
-										i := 0
-										for ; i < len(valueSet); i++ {
-											if valueSet[i] == pair.Value {
-												break
+							if len(states) > 0 {
+								for i, server := range quorum {
+									serverState := states[server]
+									isNull := true
+									for _, pair := range serverState {
+										if pair.Reg == reg {
+											i := 0
+											for ; i < len(valueSet); i++ {
+												if valueSet[i] == pair.Value {
+													break
+												}
 											}
+											if i == len(valueSet) {
+												valueSet = append(valueSet, pair.Value)
+											}
+											isNull = false
+											break
 										}
-										if i == len(valueSet) {
-											valueSet = append(valueSet, pair.Value)
-										}
-										isNull = false
-										break
 									}
-								}
-								if isNull && firstNull == nil {
-									i := i
-									firstNull = &i
+									if isNull && firstNull == nil {
+										i := i
+										firstNull = &i
+									}
 								}
 							}
 
@@ -241,11 +243,11 @@ func main() {
 			var nextKey Key
 			kv := make(map[Key]Value)
 
-		loop_reqs:
 			for {
 				select {
 
 				case req := <-reqChan:
+					numWrites := 0
 				do:
 					input := &req.Value
 					states := make(map[int][]RegPair)
@@ -257,27 +259,29 @@ func main() {
 						for _, quorum := range quorums {
 							var valueSet []Value
 							var firstNull *int
-							for i, server := range quorum {
-								serverState := states[server]
-								isNull := true
-								for _, pair := range serverState {
-									if pair.Reg == reg {
-										i := 0
-										for ; i < len(valueSet); i++ {
-											if valueSet[i] == pair.Value {
-												break
+							if len(states) > 0 {
+								for i, server := range quorum {
+									serverState := states[server]
+									isNull := true
+									for _, pair := range serverState {
+										if pair.Reg == reg {
+											i := 0
+											for ; i < len(valueSet); i++ {
+												if valueSet[i] == pair.Value {
+													break
+												}
 											}
+											if i == len(valueSet) {
+												valueSet = append(valueSet, pair.Value)
+											}
+											isNull = false
+											break
 										}
-										if i == len(valueSet) {
-											valueSet = append(valueSet, pair.Value)
-										}
-										isNull = false
-										break
 									}
-								}
-								if isNull && firstNull == nil {
-									i := i
-									firstNull = &i
+									if isNull && firstNull == nil {
+										i := i
+										firstNull = &i
+									}
 								}
 							}
 
@@ -285,6 +289,7 @@ func main() {
 								// any
 								server := quorum[rand.Intn(len(quorum))]
 								ret := write(server, nextKey, reg, input)
+								numWrites++
 								states[server] = ret
 								continue loop
 
@@ -296,7 +301,7 @@ func main() {
 									req.Key = nextKey
 									nextKey++
 									req.Done()
-									continue loop_reqs
+									break loop
 								} else {
 									nextKey++
 									goto do
@@ -315,6 +320,7 @@ func main() {
 								}
 								input = &valueSet[0]
 								ret := write(quorum[*firstNull], nextKey, reg, input)
+								numWrites++
 								states[quorum[*firstNull]] = ret
 								continue loop
 							}
@@ -325,6 +331,8 @@ func main() {
 
 						reg++
 					}
+
+					//pt("%d\n", numWrites)
 
 				}
 			}
