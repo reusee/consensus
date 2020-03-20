@@ -20,16 +20,13 @@ var (
 )
 
 func main() {
-	numServers := 3
+	numServers := 7
 	configuration := func(reg int) [][]int {
 		return [][]int{
-			{0, 1},
-			{1, 2},
-			{2, 0},
-			//{0, 1, 2, 3},
-			//{1, 2, 3, 4},
-			//{2, 3, 4, 5},
-			//{3, 4, 5, 6},
+			{0, 1, 2, 3},
+			{1, 2, 3, 4},
+			{2, 3, 4, 5},
+			{3, 4, 5, 6},
 		}
 	}
 
@@ -62,7 +59,7 @@ func main() {
 							}
 						}
 						// write
-						if rand.Intn(100) >= 0 { // randomize
+						if rand.Intn(100) > 50 { // randomize
 							registers = append(registers, w.Arg)
 						}
 						w.Ret = registers
@@ -91,7 +88,7 @@ func main() {
 		}
 
 		// clients
-		numClients := 16
+		numClients := 512
 		wg := new(sync.WaitGroup)
 		wg.Add(numClients)
 		decides := make([]int, numClients)
@@ -208,7 +205,7 @@ func main() {
 						}()
 						if isMaybe {
 
-							if rand.Intn(100) > 30 {
+							if rand.Intn(100) > 33 {
 								// non-cooperative
 								input = int(rand.Int63())
 							} else {
